@@ -9,7 +9,7 @@ cimport numpy as cnp
 cimport pcl_defs as cpp
 
 cimport cython
-from cython.operator import dereference as deref
+from cython.operator import dereference as deref, preincrement as inc
 
 from cpython cimport Py_buffer
 
@@ -86,7 +86,7 @@ cdef class Segmentation:
 
 #yeah, I can't be bothered making this inherit from SACSegmentation, I forget the rules
 #for how this works in cython templated extension types anyway
-cdef class SegmentationNormal:
+n cdef class SegmentationNormal:
     """
     Segmentation class for Sample Consensus methods and models that require the
     use of surface normals for estimation.
@@ -764,3 +764,47 @@ cdef class OctreePointCloudSearch(OctreePointCloud):
             np_k_indices[i] = k_indices[i]
         return np_k_indices, np_k_sqr_distances
 
+cdef class EuclideanClusterExtraction:
+    """
+    Represents a segmentation class for cluster extraction in an Euclidean sense.
+
+    Must be constructed from the reference point cloud, which is copied, so
+    changed to pc are not reflected in KdTreeFLANN(pc).
+    """
+    cdef cpp.EuclideanClusterExtraction_t *me
+
+    def __cinit__(self, PointCloud pc not None):
+        self.me = new cpp.EuclideanClusterExtraction_t()
+        self.me.setInputCloud(pc.thisptr_shared)
+
+    def __dealloc__(self):
+        del self.me
+
+    def extract_clusters(self):
+        """
+        Cluster extraction in a PointCloud.
+        
+        Returns: clusters	the resultant point clusters
+        """
+        
+        cdef vector[PointIndices] cluster_indices
+        self.me.extract (cluster_indices)
+
+        clusters = []
+        cdef vector[PointIndices].iterator it = cluster_indice.begin()
+
+        
+        
+                cdef PointCloud pc = PointCloud()
+
+        for (std::vector<pcl::PointIndices>::const_iterator it = cluster_indices.begin (); it != cluster_indices.end (); ++it)
+  {
+    pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_cluster (new pcl::PointCloud<pcl::PointXYZ>);
+    for (std::vector<int>::const_iterator pit = it->indices.begin (); pit != it->indices.end (); ++pit)
+      cloud_cluster->points.push_back (cloud_filtered->points[*pit]); //*
+    cloud_cluster->width = cloud_cluster->points.size ();
+    cloud_cluster->height = 1;
+    cloud_cluster->is_dense = true;
+
+  }
+        

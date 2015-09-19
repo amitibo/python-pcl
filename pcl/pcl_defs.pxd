@@ -230,3 +230,15 @@ cdef extern from "pcl/kdtree/kdtree_flann.h" namespace "pcl":
           int, int, vector[int], vector[float])
 
 ctypedef KdTreeFLANN[PointXYZ] KdTreeFLANN_t
+
+cdef extern from "pcl/segmentation/extract_clusters.h" namespace "pcl":
+    cdef cppclass EuclideanClusterExtraction[T]:
+        EuclideanClusterExtraction()
+        void setInputCloud (shared_ptr[PointCloud[T]])
+        void setClusterTolerance (double)
+        void setMaxClusterSize (int)
+        void setMinClusterSize (int)
+        void setSearchMethod (KdTree[T])
+        void extract (vector[PointIndices]);
+        
+ctypedef EuclideanClusterExtraction[PointXYZ] EuclideanClusterExtraction_t
