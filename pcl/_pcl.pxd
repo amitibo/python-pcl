@@ -14,3 +14,5 @@ cdef class PointCloud:
     cdef inline cpp.PointCloud[cpp.PointXYZ] *thisptr(self) nogil:
         # Shortcut to get raw pointer to underlying PointCloud<PointXYZ>.
         return self.thisptr_shared.get()
+
+    cdef PointCloud extract_c(self, cpp.PointIndices_t indices)

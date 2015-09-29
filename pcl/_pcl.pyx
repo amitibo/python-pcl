@@ -9,7 +9,7 @@ cimport numpy as cnp
 cimport pcl_defs as cpp
 
 cimport cython
-from cython.operator import dereference as deref
+from cython.operator import dereference as deref, preincrement as inc
 
 from cpython cimport Py_buffer
 
@@ -17,7 +17,7 @@ from libcpp.string cimport string
 from libcpp cimport bool
 from libcpp.vector cimport vector
 
-from shared_ptr cimport sp_assign
+from shared_ptr cimport sp_assign, shared_ptr
 
 cdef extern from "minipcl.h":
     void mpcl_compute_normals(cpp.PointCloud_t, int ksearch,
@@ -176,15 +176,21 @@ cdef class PointCloud:
     property width:
         """ property containing the width of the point cloud """
         def __get__(self): return self.thisptr().width
+        def __set__(self, width): self.thisptr().width = width
+            
     property height:
         """ property containing the height of the point cloud """
         def __get__(self): return self.thisptr().height
+        def __set__(self, height): self.thisptr().height = height
+
     property size:
         """ property containing the number of points in the point cloud """
         def __get__(self): return self.thisptr().size()
+            
     property is_dense:
         """ property containing whether the cloud is dense or not """
         def __get__(self): return self.thisptr().is_dense
+        def __set__(self, is_dense): self.thisptr().is_dense = is_dense
 
     def __repr__(self):
         return "<PointCloud of %d points>" % self.size
@@ -442,6 +448,19 @@ cdef class PointCloud:
 
         return result
 
+    cdef PointCloud extract_c(self, cpp.PointIndices_t indices):
+        """
+        Given a list of indices of points in the pointcloud, return a 
+        new pointcloud containing only those points.
+        """
+
+        cdef PointCloud result
+        result = PointCloud()
+        mpcl_extract(self.thisptr_shared, result.thisptr(), &indices, False)
+
+        return result
+
+
 cdef class StatisticalOutlierRemovalFilter:
     """
     Filter class uses point neighborhood statistics to filter outlier data.
@@ -593,6 +612,24 @@ cdef class PassThroughFilter:
         cdef PointCloud pc = PointCloud()
         self.me.filter(pc.thisptr()[0])
         return pc
+
+cdef class KdTree:
+    """
+    Finds k nearest neighbours from points in another pointcloud to points in
+    a reference pointcloud.
+
+    Must be constructed from the reference point cloud, which is copied, so
+    changed to pc are not reflected in KdTree(pc).
+    """
+    cdef shared_ptr[cpp.KdTree_t]* _thisptr
+
+    def __cinit__(self, PointCloud pc not None):
+        self._thisptr = new shared_ptr[cpp.KdTree_t](new cpp.KdTree_t())
+        self._thisptr.get().setInputCloud(pc.thisptr_shared)
+
+    def __dealloc__(self):
+        if self._thisptr is not NULL:
+            del self._thisptr
 
 cdef class KdTreeFLANN:
     """
@@ -764,3 +801,76 @@ cdef class OctreePointCloudSearch(OctreePointCloud):
             np_k_indices[i] = k_indices[i]
         return np_k_indices, np_k_sqr_distances
 
+cdef class EuclideanClusterExtraction:
+    """
+    Represents a segmentation class for cluster extraction in an Euclidean sense.
+    """
+    cdef shared_ptr[cpp.EuclideanClusterExtraction_t]* _thisptr
+
+    def __cinit__(self, PointCloud pc not None):
+        self._thisptr = new shared_ptr[cpp.EuclideanClusterExtraction_t](new cpp.EuclideanClusterExtraction_t())
+        self._thisptr.get().setInputCloud(pc.thisptr_shared)
+
+    def __dealloc__(self):
+        if self._thisptr is not NULL:
+            del self._thisptr
+
+    def setSearchMethod(self, KdTree kt):
+        """Get a pointer to the search method used."""
+        
+        self._thisptr.get().setSearchMethod(<cpp.SearchPtr_t>kt._thisptr[0])
+
+    def setClusterTolerance(self, double tolerance):
+        """Set the spatial cluster tolerance as a measure in the L2 Euclidean space."""
+        
+        self._thisptr.get().setClusterTolerance(tolerance)
+
+    def setMaxClusterSize(self, int max_cluster_size):
+        """Set the maximum number of points that a cluster needs to contain in order to be considered valid."""
+
+        self._thisptr.get().setMaxClusterSize(max_cluster_size)
+
+    def setMinClusterSize(self, int min_cluster_size):
+        """Set the minimum number of points that a cluster needs to contain in order to be considered valid."""
+
+        self._thisptr.get().setMinClusterSize(min_cluster_size)
+
+    def extract_clusters(self, PointCloud pc):
+        """
+        Cluster extraction in a PointCloud.
+        
+        Returns: clusters	the resultant point clusters
+        """
+        
+        cdef vector[cpp.PointIndices] cluster_indices
+        self._thisptr.get().extract(cluster_indices)
+
+        clusters = []
+        cdef vector[cpp.PointIndices].iterator it = cluster_indices.begin()
+
+        while it != cluster_indices.end():
+            cluster = pc.extract_c(deref(it))
+            cluster.width = cluster.points.size
+            cluster.height = 1
+            cluster.is_dense = True
+            
+            clusters.append(cluster)
+            inc(it)
+
+        return clusters
+
+  #       for (std::vector<pcl::PointIndices>::const_iterator it = cluster_indices.begin (); it != cluster_indices.end (); ++it)
+  # {
+  #   pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_cluster (new pcl::PointCloud<pcl::PointXYZ>);
+  #   for (std::vector<int>::const_iterator pit = it->indices.begin (); pit != it->indices.end (); ++pit)
+  #     cloud_cluster->points.push_back (cloud_filtered->points[*pit]); //*
+  #   cloud_cluster->width = cloud_cluster->points.size ();
+  #   cloud_cluster->height = 1;
+  #   cloud_cluster->is_dense = true;
+
+  # }
+        
+def setVerbosityLevel(level):
+    level = min(level, 5)
+
+    cpp.setVerbosityLevel(cpp.L_VERBOSE)

@@ -91,9 +91,20 @@ cdef extern from "pcl/surface/mls.h" namespace "pcl":
 
 ctypedef MovingLeastSquares[PointXYZ,PointXYZ] MovingLeastSquares_t
 
+cdef extern from "pcl/search/search.h" namespace "pcl::search":
+    cdef cppclass Search[T]:
+        Search()
+
+ctypedef Search[PointXYZ] Search_t
+ctypedef shared_ptr[Search[PointXYZ]] SearchPtr_t
+        
 cdef extern from "pcl/search/kdtree.h" namespace "pcl::search":
     cdef cppclass KdTree[T]:
         KdTree()
+        void setInputCloud (shared_ptr[PointCloud[T]])
+
+ctypedef KdTree[PointXYZ] KdTree_t
+ctypedef shared_ptr[KdTree[PointXYZ]] KdTreePtr_t
 
 ctypedef aligned_allocator[PointXYZ] aligned_allocator_t 
 ctypedef vector2[PointXYZ, aligned_allocator_t] AlignedPointTVector_t
@@ -230,3 +241,26 @@ cdef extern from "pcl/kdtree/kdtree_flann.h" namespace "pcl":
           int, int, vector[int], vector[float])
 
 ctypedef KdTreeFLANN[PointXYZ] KdTreeFLANN_t
+ctypedef shared_ptr[KdTreeFLANN[PointXYZ]] KdTreeFLANNPtr_t
+
+cdef extern from "pcl/segmentation/extract_clusters.h" namespace "pcl":
+    cdef cppclass EuclideanClusterExtraction[T]:
+        EuclideanClusterExtraction()
+        void setInputCloud (shared_ptr[PointCloud[T]])
+        void setClusterTolerance (double)
+        void setMaxClusterSize (int)
+        void setMinClusterSize (int)
+        void setSearchMethod (shared_ptr[Search[PointXYZ]])
+        void extract (vector[PointIndices] &);
+        
+ctypedef EuclideanClusterExtraction[PointXYZ] EuclideanClusterExtraction_t
+
+cdef extern from "pcl/console/print.h" namespace "pcl::console":
+    ctypedef enum VERBOSITY_LEVEL:
+        L_ALWAYS
+        L_ERROR
+        L_WARN
+        L_INFO
+        L_DEBUG
+        L_VERBOSE
+    void setVerbosityLevel(VERBOSITY_LEVEL)
